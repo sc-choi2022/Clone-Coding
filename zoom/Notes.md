@@ -1822,3 +1822,165 @@ io function이 알아서 socket.io을 실행하고 있는 server를 찾는다.
 ![image-20220708154046055](Notes.assets/image-20220708154046055.png)
 
 :ballot_box_with_check: backend에서 sockets에 socket id를 확인할 수 있다.
+
+
+
+### SocketIO is Amazing
+
+Room의 Concept정하기
+
+User가 Website로 가면 Room을 만들거나 참가할 수 있는 Form을 보게 된다.
+
+SocketIO은 이미 Room 기능을 가지고 있다.
+
+* 방에 참가하는 것
+* 방 떠나는 것
+
++socketIO의 다른 기능도 배울 수 있다
+
+**home.pug**
+
+이미 만들어진 방에 참가하는 것과 방을 만드는 것에는 차이가 없다.
+
+```pug
+doctype html
+html(lang="en")
+    head
+        meta(charset="UTF-8")
+        meta(http-equiv="X-UA-Compatible", content="IE=edge")
+        meta(name="viewport", content="width=device-width, initial-scale=1.0")
+        title Noom
+        link(rel="stylesheet" href="https://unpkg.com/mvp.css")
+    body 
+        header
+            h1 Noom
+        main
+            div#welcome
+                form
+                    input(placeholder="room name", required, type="text")
+                    button Enter Room
+        script(src="/socket.io/socket.io.js")
+        script(src="public/js/app.js")
+```
+
+
+
+**app.js**
+
+Socket IO
+
+`socket.emit("room", {payload: input.value});`
+
+* 특정한 event을 emit해줄 수 있다. event의 이름은 관계없다. (꼭 message가 아니어도 된다.)
+* object을 전송할 수 있다. (String만 보낼 필요가 없다.) JavaScript Object 가능
+
+```js
+const socket = io();
+
+const welcome = document.getElementById("welcome");
+const form = welcome.querySelector("form");
+
+function handleRoomSubmit(event){
+  event.preventDefault();
+  const input = form.querySelector("input");
+  socket.emit("enter_room", {payload: input.value});
+  input.value = "";
+};
+
+form.addEventListener("submit", handleRoomSubmit);
+```
+
+
+
+**server.js**
+
+```js
+import http from "http";
+import SocketIO from "socket.io";
+import express from "express";
+
+const app = express();
+
+app.set("view engine", "pug");
+app.set("views", __dirname + "/views");
+app.use("/public", express.static(__dirname + "/public"));
+app.get("/", (_, res) => res.render("home"));
+app.get("/*", (_, res) => res.render("/"));
+const handleListen = () => console.log(`Listening on ws://localhost:3000`);
+
+const httpServer = http.createServer(app);
+const wsServer = SocketIO(httpServer);
+
+wsServer.on("connection", socket => {
+  socket.on("enter_room", (message) => console.log(message));
+});
+
+httpServer.listen(3000, handleListen);
+```
+
+![image-20220708165028870](Notes.assets/image-20220708165028870.png)
+
+![image-20220708165151660](Notes.assets/image-20220708165151660.png)
+
+
+
+🎈 SocketIO Improvement
+
+1. Custom event
+
+2. Able to send object from FrontEnd
+
+3. Callback function: Function that executed from server.
+
+   socket.emit의 3번째 argument로 function을 줄 것이다.
+
+   `socket.emit("enter_room", {payload: input.value}, () => { console.log("server is done!"); });`
+
+:heavy_check_mark:socket.emit
+
+1st argument: Name of the event
+
+2nd argument: Payload
+
+3rd argument: Function that we can call from our server.
+
+**app.js**
+
+```js
+  socket.emit("enter_room", {payload: input.value}, () => {
+    console.log("server is done!");
+  });
+```
+
+**server.js**
+
+```js
+wsServer.on("connection", socket => {
+  socket.on("enter_room", (message, done) => {
+    console.log(message);
+    setTimeout(() => {
+      done();
+    }, 10000);
+  });
+});
+```
+
+emit, on의 이름이 동일하다.
+
+argument {payload: input.value} = (message)
+
+() => { console.log("server is done!"); } = (done)
+
+* server가 두번째 argument인 done이라는 function을 호출
+
+* server.js의 done()이 실행되면 app.js의 function이 실행된다.
+
+* server는 10초 안에 front-end에서 function을 실행
+
+  => Server는 Backend에서 function을 호출하지만 function은 Frontend에서 실행된 것
+
+  
+
+![image-20220708171629418](Notes.assets/image-20220708171629418.png)
+
+server가 꺼지면 SocketIO가 계속해서 재연결을 시도한다.
