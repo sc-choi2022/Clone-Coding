@@ -1654,3 +1654,171 @@ nickForm.addEventListener("submit", handleNickSubmit);
 우리가 Message type을 확인하고 사용했었다.
 
 addEventListener를 계속 사용한다. => front-end에서도 socket.on("join"); 등을 쓸 수 있다.
+
+
+
+## #2 SOCKETIO
+
+### SocketIO vs WebSockets
+
+SocketIO **framework**
+
+Socket.IO enables real-time, bidirectional and event-based communication.
+
+(sounds similar with WebSockets)
+
+It works on every platform, browser or device, focusing equally on realiability and speed.
+
+**Socket IO is more resilient then WebSocket**
+
+websocket은 Socket IO가 실시간, 양방향, event 기반 통신을 제공하는 방법 중 하나이다.
+
+If some browser or  phone not support the websocket.
+
+:heavy_check_mark:websocket에 문제가 생겨도 socket IO는 계속 작동한다.
+
+Socket IO는 webocket의 부가기능이 아니다.(Socket.IO is **NOT** a WebSocet implementation.)
+
+Socket IO는 webSocket을 이용하여 Framework로 실시간, 양방향, event 기반 통신을 제공한다.
+
+
+
+:white_check_mark:Browser가 websocket 사용이 가능하다면 socket IO는 websocket을 이용한다.
+
+(만약 firewall, proxy가 있어도 socket IO는 계속 작동한다.)
+
+:white_check_mark:websocket을 지원하지 않으면 HTTP long polling과 같은 다른 것을 사용한다.
+
+:white_check_mark:Socket IO의 경우에는 만약 wifi연결이 잠시동안 끊겨도 socket IO은 재연결을 시도한다.
+
+🎈 socket IO gives you reliability
+
+<u>socket IO is heavier than websocket</u>
+
+
+
+### Installing SocketIO
+
+Websocket 대신에 socketIO를 이용한다.
+
+```bash
+$ npm i socket.io
+```
+
+**server.js**
+
+```js
+import WebSocket from "ws";
+const wss = new WebSocket.Server({server});
+```
+
+
+
+```js
+import SocketIO from "socket.io";
+const httpServer = http.createServer(app);
+const wsServer = SocketIO(httpServer);
+httpServer.listen(3000, handleListen);
+```
+
+:exclamation:socket IO가 url을 준다.
+
+localhost:3000/socket.io/socket.io.js
+
+:heavy_check_mark: 이렇게 해야하는 이유
+
+SocketIO가 WebSocket의 부가기능이 아니기 때문이다.
+
+SocketIo는 재연결과 같은 부가기능이 있다.
+
+client에도 socketIO를 설치해야한다.
+
+websocket을 사용할 때는 backend에 설치가 필요하지 않았다. Browser가 제공하는 WebSocket API 사용했다.
+
+하지만 Browser가 주는 Websocket은 Socket IO와 호환이 되지 않는다. (Socket IO의 기능이 많기 때문이다.)
+
+
+
+**URL을 주어서 front-end에서는 이걸 쉽게 import할 수 있다.**
+
+이제 socket IO가 front-end와 Back-end에 설치 될 것이다.
+
+**app.js**의 코드를 전부지우고 시작하고 **home.pug**의 main의 코드도 모두 지운다.
+
+
+
+:large_blue_circle: User가 Chat에 참가하고 싶으면 Room을 먼저 만들도록 하고 싶다.
+
+더이상 public chat을 사용하지 않을 것이다.
+
+이것을 해주기 전에 socketIO를 꼭 설치해야 한다.
+
+**home.pug**
+
+```pug
+doctype html
+html(lang="en")
+    head
+        meta(charset="UTF-8")
+        meta(http-equiv="X-UA-Compatible", content="IE=edge")
+        meta(name="viewport", content="width=device-width, initial-scale=1.0")
+        title Noom
+        link(rel="stylesheet" href="https://unpkg.com/mvp.css")
+    body 
+        header
+            h1 Noom
+        main
+        script(src="/socket.io/socket.io.js")
+        script(src="public/js/app.js")
+```
+
+
+
+**server.js**
+
+backend에서 connection을 받을 준비가 되어있다.
+
+새로운 connection을 등록할 준비가 되었다.
+
+`wsServer.on("connection", socket => { console.log(socket);});`
+
+```js
+import http from "http";
+import SocketIO from "socket.io";
+import express from "express";
+
+const app = express();
+
+app.set("view engine", "pug");
+app.set("views", __dirname + "/views");
+app.use("/public", express.static(__dirname + "/public"));
+app.get("/", (_, res) => res.render("home"));
+app.get("/*", (_, res) => res.render("/"));
+const handleListen = () => console.log(`Listening on ws://localhost:3000`);
+
+const httpServer = http.createServer(app);
+const wsServer = SocketIO(httpServer);
+
+wsServer.on("connection", socket => {
+  console.log(socket);
+});
+httpServer.listen(3000, handleListen);
+```
+
+![image-20220708153441925](Notes.assets/image-20220708153441925.png)
+
+**app.js**
+
+socketIO을 front-end와 연결
+
+```js
+const socket = io();
+```
+
+🎈port, ws을 쓰지 않아도 된다.
+
+io function이 알아서 socket.io을 실행하고 있는 server를 찾는다.
+
+![image-20220708154046055](Notes.assets/image-20220708154046055.png)
+
+:ballot_box_with_check: backend에서 sockets에 socket id를 확인할 수 있다.
