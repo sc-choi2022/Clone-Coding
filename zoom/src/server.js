@@ -9,14 +9,17 @@ app.set("views", __dirname + "/views");
 app.use("/public", express.static(__dirname + "/public"));
 app.get("/", (_, res) => res.render("home"));
 app.get("/*", (_, res) => res.render("/"));
-const handleListen = () => console.log(`Listening on ws://localhost:3000`);
 
 const httpServer = http.createServer(app);
 const wsServer = SocketIO(httpServer);
 
-wsServer.on("connection", socket => {
-  socket.on("enter_room", (message) => {
-    console.log(message);
+wsServer.on("connection", (socket) => {
+  socket.onAny((event) => {
+    console.log(`Socket Event: ${event}`);
+  });
+  socket.on("enter_room", (roomName, done) => {
+    socket.join(roomName);
+    done();
   });
 });
 // const sockets = [];
@@ -36,4 +39,5 @@ wsServer.on("connection", socket => {
 //     }
 //   });
 // });
+const handleListen = () => console.log(`Listening on http://localhost:3000`);
 httpServer.listen(3000, handleListen);

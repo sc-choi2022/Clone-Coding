@@ -1977,10 +1977,289 @@ argument {payload: input.value} = (message)
 
 * server는 10초 안에 front-end에서 function을 실행
 
-  => Server는 Backend에서 function을 호출하지만 function은 Frontend에서 실행된 것
+  => Server는 Backend에서 function을 호출하지만 **function은 Frontend에서 실행된 것**
 
   
 
 ![image-20220708171629418](Notes.assets/image-20220708171629418.png)
 
 server가 꺼지면 SocketIO가 계속해서 재연결을 시도한다.
+
+
+
+:checkered_flag:
+
+Backend에서 Function에 argument를 보낼 수 있다.
+
+**app.js**
+
+```js
+function backendDone(msg){
+  console.log(`The backend says: `, msg);
+};
+
+function handleRoomSubmit(event){
+  event.preventDefault();
+  const input = form.querySelector("input");
+  socket.emit("enter_room", input.value, backendDone);
+  input.value = "";
+};
+```
+
+**server.js**
+
+```js
+wsServer.on("connection", socket => {
+  socket.on("enter_room", (message, done) => {
+    console.log(message);
+    setTimeout(() => {
+      done("hello from the backend");
+    }, 15000);
+  });
+});
+```
+
+
+
+### Rooms
+
+**server.js**
+
+roomName으로 방에 참가한다.
+
+```js
+import http from "http";
+import SocketIO from "socket.io";
+import express from "express";
+
+const app = express();
+
+app.set("view engine", "pug");
+app.set("views", __dirname + "/views");
+app.use("/public", express.static(__dirname + "/public"));
+app.get("/", (_, res) => res.render("home"));
+app.get("/*", (_, res) => res.render("/"));
+const handleListen = () => console.log(`Listening on ws://localhost:3000`);
+
+const httpServer = http.createServer(app);
+const wsServer = SocketIO(httpServer);
+
+wsServer.on("connection", (socket) => {
+  socket.on("enter_room", (roomName, done) => {
+    socket.join("");
+    setTimeout(() => {
+      done("hello from the backend");
+    }, 15000);
+  });
+});
+httpServer.listen(3000, handleListen);
+```
+
+🎈SOCKET.IO 홈페이지에서 기능들을 확인할 수 있다.
+
+:one:Server API(socket.id, socket.rooms, socket.join, socket.onAny)
+
+:two:Client API
+
+**server.js**
+
+```js
+import http from "http";
+import SocketIO from "socket.io";
+import express from "express";
+
+const app = express();
+
+app.set("view engine", "pug");
+app.set("views", __dirname + "/views");
+app.use("/public", express.static(__dirname + "/public"));
+app.get("/", (_, res) => res.render("home"));
+app.get("/*", (_, res) => res.render("/"));
+const handleListen = () => console.log(`Listening on ws://localhost:3000`);
+
+const httpServer = http.createServer(app);
+const wsServer = SocketIO(httpServer);
+
+wsServer.on("connection", (socket) => {
+  socket.onAny((event) => {
+    console.log(`Socket Event: ${event}`);
+  });
+  socket.on("enter_room", (roomName, done) => {
+    console.log(socket.rooms);
+    socket.join(roomName);
+    console.log(socket.rooms);
+    setTimeout(() => {
+      done("hello from the backend");
+    }, 15000);
+  });
+});
+httpServer.listen(3000, handleListen);
+```
+
+![image-20220709214926987](Notes.assets/image-20220709214926987.png)
+
+:question: 'EhV9hWQ1BvsLtNRxAAAF'
+
+`console.log(socket.id);` => **socket.id**
+
+![image-20220709221009527](Notes.assets/image-20220709221009527.png)
+
+기본적으로 user는 이미 방에 혼자 들어가 있다.
+
+user의 id는 user가 있는 방의 id와 동일하다.
+
+socketIO에서 모든 socket은 기본적으로 User와 server 사이에 private room이 있기 때문이다.
+
+:heavy_check_mark:방에 들어가기 위해서 `socket.join()`만 하면 된다.
+
+:heavy_check_mark:socket이 어떤 방에 있는지 알기 위해서는 `socket.rooms()`을 하면된다.
+
+`socket.id()`
+
+`socket.leave(room)`
+
+`socket.to(room)`: 방 전체에 메시지를 보낼 수 있다.
+
+`socket.to("others").emit("an event", { some: "data"});`
+
+
+
+**home.pug**
+
+#room의 div을 추가
+
+message을 위한 input을 만들 것이다.
+
+:heavy_check_mark:처음에는 숨겨준다.
+
+```pug
+doctype html
+html(lang="en")
+    head
+        meta(charset="UTF-8")
+        meta(http-equiv="X-UA-Compatible", content="IE=edge")
+        meta(name="viewport", content="width=device-width, initial-scale=1.0")
+        title Noom
+        link(rel="stylesheet" href="https://unpkg.com/mvp.css")
+    body 
+        header
+            h1 Noom
+        main
+            div#welcome
+                form
+                    input(placeholder="room name", required, type="text")
+                    button Enter Room
+            div#room
+                ul
+                form
+                    input(placeholder="message", required, type="text")
+                    button Send
+        script(src="/socket.io/socket.io.js")
+        script(src="public/js/app.js")
+```
+
+
+
+**app.js**
+
+#room을 찾아준다.
+
+showRoom function을 만들고 callback함수로 넣어준다.
+
+```js
+const socket = io();
+
+const welcome = document.getElementById("welcome");
+const form = welcome.querySelector("form");
+const room = document.getElementById("room");
+
+room.hidden = true;
+
+function showRoom() {
+  welcome.hidden = true;
+  room.hidden = false;
+}
+
+function handleRoomSubmit(event) {
+  event.preventDefault();
+  const input = form.querySelector("input");
+  socket.emit("enter_room", input.value, showRoom);
+  roomName = input.value;
+  input.value = "";
+}
+
+form.addEventListener("submit", handleRoomSubmit);
+```
+
+
+
+**sever.js**
+
+app.js의 함수를 실행해준다.
+
+`done();`
+
+```js
+import http from "http";
+import SocketIO from "socket.io";
+import express from "express";
+
+const app = express();
+
+app.set("view engine", "pug");
+app.set("views", __dirname + "/views");
+app.use("/public", express.static(__dirname + "/public"));
+app.get("/", (_, res) => res.render("home"));
+app.get("/*", (_, res) => res.render("/"));
+
+const httpServer = http.createServer(app);
+const wsServer = SocketIO(httpServer);
+
+wsServer.on("connection", (socket) => {
+  socket.onAny((event) => {
+    console.log(`Socket Event: ${event}`);
+  });
+  socket.on("enter_room", (roomName, done) => {
+    socket.join(roomName);
+    done();
+  });
+});
+const handleListen = () => console.log(`Listening on http://localhost:3000`);
+httpServer.listen(3000, handleListen);
+```
+
+
+
+참가한 방에 있는 사람들에게 참가한 사람을 알려준다.
+
+**home.pug**
+
+h3 추가
+
+
+
+**app.js**
+
+```js
+let roomName;
+
+function showRoom() {
+  welcome.hidden = true;
+  room.hidden = false;
+  const h3 = room.querySelector("h3");
+  h3.innerText = `Room ${roomName}`;
+}
+```
+
+
+
+🎈function showRoom을 Backend에서 실행했다.
+
+**When?**
+
+`socket.join(roomName)` 후 `done()`을 하면서 실행했다.
+
+
+
+### Room Messages
+
