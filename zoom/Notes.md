@@ -2263,3 +2263,108 @@ function showRoom() {
 
 ### Room Messages
 
+참여한 방에 메시지를 보낸다.
+
+`io.on("connection", (socket))` 방에 참여
+
+`socket.to("others").emit("an event", { some: "data"});`
+
+others라는 방에 우리가 원하는 데이터를 가지고 string "an event"을 emit할 것이다.
+
+**Private Message(개인 메세지)**를 보낼 수도 있다.
+
+socket ID를 알고 있다면 Private Message를 보낼 수 있다.
+
+`socket.to(/* socket id */).emit("hey");`
+
+
+
+**server.js**
+
+:one:방에 참가
+
+:two:done() function을 호출 :arrow_forward:Frontend에 있는 showRoom()을 실행
+
+:three:event(여기서는 "welcome")을 방금 참가한 방 안에 있는 모든 사람에게 emit
+
+```js
+import http from "http";
+import SocketIO from "socket.io";
+import express from "express";
+
+const app = express();
+
+app.set("view engine", "pug");
+app.set("views", __dirname + "/views");
+app.use("/public", express.static(__dirname + "/public"));
+app.get("/", (_, res) => res.render("home"));
+app.get("/*", (_, res) => res.render("/"));
+
+const httpServer = http.createServer(app);
+const wsServer = SocketIO(httpServer);
+
+wsServer.on("connection", (socket) => {
+  socket.onAny((event) => {
+    console.log(`Socket Event: ${event}`);
+  });
+  socket.on("enter_room", (roomName, done) => {
+    socket.join(roomName);
+    done();
+    socket.to(roomName).emit("welcome");
+  });
+});
+
+const handleListen = () => console.log(`Listening on http://localhost:3000`);
+httpServer.listen(3000, handleListen);
+```
+
+
+
+:four:Frontend에서 이 event에 반응하도록 만든다
+
+**app.js**
+
+* addMessage
+* socket.on("welcome")
+
+```js
+const socket = io();
+
+const welcome = document.getElementById("welcome");
+const form = welcome.querySelector("form");
+const room = document.getElementById("room");
+
+room.hidden = true;
+
+let roomName;
+
+function addMessage(message){
+  const ul = room.querySelector("ul");
+  const li = document.createElement("li");
+  li.innerText = message;
+  ul.appendChild(li);
+};
+
+function showRoom() {
+  welcome.hidden = true;
+  room.hidden = false;
+  const h3 = room.querySelector("h3");
+  h3.innerText = `Room ${roomName}`;
+}
+
+function handleRoomSubmit(event) {
+  event.preventDefault();
+  const input = form.querySelector("input");
+  socket.emit("enter_room", input.value, showRoom);
+  roomName = input.value;
+  input.value = "";
+}
+
+form.addEventListener("submit", handleRoomSubmit);
+
+socket.on("welcome", () => {
+  addMessage("someone joined!");
+});
+```
+
+![image-20220710123016284](Notes.assets/image-20220710123016284.png)
