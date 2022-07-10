@@ -2368,3 +2368,247 @@ socket.on("welcome", () => {
 ```
 
 ![image-20220710123016284](Notes.assets/image-20220710123016284.png)
+
+
+
+### Room Notifications
+
+방을 떠날 때 알려준다.
+
+`socket.on("disconnecting")`
+
+disconnect: 연결이 완전히 끊어졌다.
+
+disconnecting: 고객이 접속을 중단할 것이지만 아직 방을 완전히 나가지 않았다.
+
+:heavy_check_mark:disconnecting일 때 message를 보낼 수 있다.
+
+client가 server와 연결이 끊어지기 전에 방에 있는 모두에게 마지막 "Goodbye" message을 보낼 수 있다.
+
+**server.js**
+
+```js
+import http from "http";
+import SocketIO from "socket.io";
+import express from "express";
+
+const app = express();
+
+app.set("view engine", "pug");
+app.set("views", __dirname + "/views");
+app.use("/public", express.static(__dirname + "/public"));
+app.get("/", (_, res) => res.render("home"));
+app.get("/*", (_, res) => res.render("/"));
+
+const httpServer = http.createServer(app);
+const wsServer = SocketIO(httpServer);
+
+wsServer.on("connection", (socket) => {
+  socket.onAny((event) => {
+    console.log(`Socket Event: ${event}`);
+  });
+  socket.on("enter_room", (roomName, done) => {
+    socket.join(roomName);
+    done();
+    socket.to(roomName).emit("welcome");
+  });
+  socket.on("disconnecting", () => {
+    socket.rooms.forEach((room) => socket.to(room).emit("bye"));
+  });
+});
+const handleListen = () => console.log(`Listening on http://localhost:3000`);
+httpServer.listen(3000, handleListen);
+```
+
+
+
+**app.js**
+
+```js
+const socket = io();
+
+const welcome = document.getElementById("welcome");
+const form = welcome.querySelector("form");
+const room = document.getElementById("room");
+
+room.hidden = true;
+
+let roomName;
+
+function addMessage(message){
+  const ul = room.querySelector("ul");
+  const li = document.createElement("li");
+  li.innerText = message;
+  ul.appendChild(li);
+};
+
+function showRoom() {
+  welcome.hidden = true;
+  room.hidden = false;
+  const h3 = room.querySelector("h3");
+  h3.innerText = `Room ${roomName}`;
+}
+
+function handleRoomSubmit(event) {
+  event.preventDefault();
+  const input = form.querySelector("input");
+  socket.emit("enter_room", input.value, showRoom);
+  roomName = input.value;
+  input.value = "";
+}
+
+form.addEventListener("submit", handleRoomSubmit);
+
+socket.on("welcome", () => {
+  addMessage("someone joined!");
+});
+
+socket.on("bye", () => {
+  addMessage("someone left!");
+});
+```
+
+![image-20220711010240934](Notes.assets/image-20220711010240934.png)
+
+:ballot_box_with_check:Socket.IO의 기능 덕분에 할 수 있는 것이다!
+
+
+
+**message 보내기**
+
+**app.js**
+
+수정 혹은 추가된 코드
+
+🎈Backend로 message을 보낸다.
+
+Backend로 new_message라는 event를 보낸다.
+
+`socket.emit("new_message", input.value, () => { addMessage(`You: ${input.value}`);  });`
+
+첫번째 argument: input.value
+
+두번째 argument: backend에서 실행시킬 수 있는 function
+
+`addMessage(`You: ${input.value}`);`
+
+대화창에 message가 보이도록한다.
+
+세번째 argument: 현재 있는 방의 이름
+
+```js
+function handleMessageSubmit(event){
+  event.preventDefault();
+  const input = room.querySelector("input");
+  const value = input.value;
+  socket.emit("new_message", input.value, roomName, () => {
+    addMessage(`You: ${value}`);
+  });
+  input.value = "";
+};
+
+function showRoom() {
+  welcome.hidden = true;
+  room.hidden = false;
+  const h3 = room.querySelector("h3");
+  h3.innerText = `Room ${roomName}`;
+  const form = room.querySelector("form");
+  form.addEventListener("submit", handleMessageSubmit);
+};
+```
+
+
+
+**server.js**
+
+backend에서 message를 받아보자
+
+`socket.on("new_message", (message, room, done))`
+
+```js
+wsServer.on("connection", (socket) => {
+  socket.onAny((event) => {
+    console.log(`Socket Event: ${event}`);
+  });
+  socket.on("enter_room", (roomName, done) => {
+    socket.join(roomName);
+    done();
+    socket.to(roomName).emit("welcome");
+  });
+  socket.on("disconnecting", () => {
+    socket.rooms.forEach((room) => socket.to(room).emit("bye"));
+  });
+  socket.on("new_message", (message, room, done) =>{
+    socket.to(room).emit("new_message", message);
+    done();
+  })
+});
+```
+
+
+
+:heavy_check_mark:여기까지 완료하면 message을 보내는 것까지는 가능하지만 app.js가 message을 받지는 못한다.
+
+**app.js**
+
+`socket.on("new_message", addMessage);`
+
+```js
+const socket = io();
+
+const welcome = document.getElementById("welcome");
+const form = welcome.querySelector("form");
+const room = document.getElementById("room");
+
+room.hidden = true;
+
+let roomName;
+
+function addMessage(message){
+  const ul = room.querySelector("ul");
+  const li = document.createElement("li");
+  li.innerText = message;
+  ul.appendChild(li);
+};
+
+function handleMessageSubmit(event){
+  event.preventDefault();
+  const input = room.querySelector("input");
+  const value = input.value;
+  socket.emit("new_message", input.value, roomName, () => {
+    addMessage(`You: ${value}`);
+  });
+  input.value = "";
+};
+
+function showRoom() {
+  welcome.hidden = true;
+  room.hidden = false;
+  const h3 = room.querySelector("h3");
+  h3.innerText = `Room ${roomName}`;
+  const form = room.querySelector("form");
+  form.addEventListener("submit", handleMessageSubmit);
+};
+
+function handleRoomSubmit(event) {
+  event.preventDefault();
+  const input = form.querySelector("input");
+  socket.emit("enter_room", input.value, showRoom);
+  roomName = input.value;
+  input.value = "";
+};
+
+form.addEventListener("submit", handleRoomSubmit);
+
+socket.on("welcome", () => {
+  addMessage("someone joined!");
+});
+
+socket.on("bye", () => {
+  addMessage("someone left!");
+});
+
+socket.on("new_message", addMessage);
+```
+
+![image-20220711012310178](Notes.assets/image-20220711012310178.png)
